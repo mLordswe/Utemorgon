@@ -5,7 +5,7 @@
 */
 using System;
 using Dapper;
-using Microsoft.VisualBasic;
+
 namespace UtemorgonPOS.Core;
 
 public static partial class Data
@@ -23,23 +23,23 @@ public static partial class Data
 			db.Execute(
 				sql, new { CustomerId = customerId, CreationDate = creationDate }
 			);
-			Console.WriteLine($"Inserted {customerId} at {creationDate}");
+
 		}
 		public static COrder[] GetAll()
 		{
 			using var db = GetConnectionObject();
 			return [.. db.Query<COrder>("SELECT * FROM `COrder`;")];
 		}
-		public static COrder GetFromId(int customerId)
+		public static COrder? GetFromOrderId(int orderId)
 		{
-
 			using var db = GetConnectionObject();
 
-			return db.QuerySingle<COrder>("""
-			 SELECT * FROM `COrder`
-			 WHERE COrder.Id = @customerId
+			return db.QuerySingleOrDefault<COrder>(
+			"""
+			 SELECT * FROM COrder
+			 WHERE Id = @orderId
 			 LIMIT 1;
-			 """, new { customerId });
+			""", new { orderId });
 		}
 
 		public static COrder[] GetFromDate(DateOnly creationdate)
@@ -52,14 +52,14 @@ public static partial class Data
 			using var db = GetConnectionObject();
 			string Query =
 			"""
-				SELECT CO.*,RR.*, O.*
+				SELECT CO.*, O.*
 				FROM COrder CO
 				JOIN OrderRow O on CO.Id = O.COrderId
 				JOIN RentalRow RR on O.Id = RR.OrderRowId
 				where RR.ReturnedDate > RR.ExpectedReturnDate
 				order by CO.Id;
 			""";
-			var lateReturns = db.Query<COrder, OrderRow, RentalRow, COrder>(Query, (COrder, OrderRow, RentalRow) =>
+			var lateReturns = db.Query<COrder, OrderRow, COrder>(Query, (COrder, OrderRow) =>
 			{
 				COrder.OrderRow = OrderRow;
 				return COrder;
