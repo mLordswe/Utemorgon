@@ -31,13 +31,10 @@ public static partial class Data
 			using var db = GetConnectionObject();
 			string procedure =
 			"""
-			
-			
 			CREATE PROCEDURE IF NOT EXISTS GetAllFromCOrder()
 				BEGIN 
 					SELECT * FROM COrder;
 				END;
-
 			""";
 			db.Execute(procedure);
 			return [.. db.Query<COrder>("GetAllFromCOrder",
