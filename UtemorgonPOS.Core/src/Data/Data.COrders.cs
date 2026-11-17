@@ -4,6 +4,7 @@
 	EG: Orders[] _ = Data.Orders.GettAllOrdersForCustomer(12); // 12 = a customer id. 
 */
 using System;
+using System.Data;
 using Dapper;
 
 namespace UtemorgonPOS.Core;
@@ -28,7 +29,19 @@ public static partial class Data
 		public static COrder[] GetAll()
 		{
 			using var db = GetConnectionObject();
-			return [.. db.Query<COrder>("SELECT * FROM `COrder`;")];
+			string procedure =
+			"""
+			
+			
+			CREATE PROCEDURE IF NOT EXISTS GetAllFromCOrder()
+				BEGIN 
+					SELECT * FROM COrder;
+				END;
+
+			""";
+			db.Execute(procedure);
+			return [.. db.Query<COrder>("GetAllFromCOrder",
+				commandType: CommandType.StoredProcedure)];
 		}
 		public static COrder? GetFromOrderId(int orderId)
 		{
@@ -69,3 +82,11 @@ public static partial class Data
 
 	}
 }
+
+//UPDATE ORDER ONLY CUSTOMERID
+// Get all unpaid orders
+// GETLATE med ett datumspann startdatum till slutdatum
+
+/*
+
+*/
