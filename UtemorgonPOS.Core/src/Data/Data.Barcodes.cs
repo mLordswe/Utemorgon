@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Dapper;
 namespace UtemorgonPOS.Core;
 
@@ -93,49 +94,36 @@ public static partial class Data
 			return db.ExecuteScalar<int>("SELECT COUNT(*) FROM BarcodeToProduct WHERE Barcode = @Code", new { Code = code }) > 0;
 		}
 
-		/// <summary>Checks if a barcode is connected to a currently rented product </summary>
-		/// <returns>True if rented, False if not</returns>
-		public static bool GetRentedStatus(Barcode barcode)
+		public static string? AddBarcodeToRental(int productId)
+			=> ApplySpecialBarcode("R", productId);
+
+		public static string? AddBarcodeToService(int productId)
+			=> ApplySpecialBarcode("S", productId);
+
+		static string? ApplySpecialBarcode(string prefix, int productId)
 		{
 			using var db = GetConnectionObject();
 
-			string query = """
-				SELECT COUNT(*) FROM OrderRow orderRow
-				JOIN BarcodeToProduct b ON orderRow.Barcode = b.Barcode
-				JOIN RentalRow r ON r.OrderRowId = orderRow.Id
-				WHERE orderRow.Barcode = @Code AND r.ReturnedDate IS NULL
-			""";
-
-			var rented = db.ExecuteScalar<int>(query, new { Code = barcode.BarCode });
-
-			return rented > 0;
+			// No guardrails because we do not fetch user input.
+			return db.Query<string>($"CALL AddSpecialBarcodeToProduct('{prefix}', {productId})").FirstOrDefault();
 		}
 
-		///<summary>Returns a single product<br/>
-		///Adds one to stock and sets returned date to now
-		///</summary>
-		/// <returns>True on success, else False</returns>
-		public static bool TryReturnSingleProduct(Barcode barcode)
+		/// <summary>Archives a barcode</summary>
+		/// <param name="barcode"></param>
+		/// <returns>Response object with code and message</returns>
+		public static Response ArchiveBarcode(string barcode)
 		{
 			using var db = GetConnectionObject();
 
-			if (!CheckExists(barcode.BarCode)) return false;
-			if (!GetRentedStatus(barcode)) return false;
+			string query = "UPDATE BarcodeToProduct SET IsArchived = 1 WHERE Barcode = @Code";
 
-			barcode.Product.Stock += 1;
+			int affectedRows = db.Execute(query, new { Code = barcode });
 
-			string query = "UPDATE Product SET Stock = @NewStock WHERE Id = @Id";
-
-			db.Execute(query, new { NewStock = barcode.Product.Stock, Id = barcode.ProductId });
-
-			query = """
-			UPDATE RentalRow r
-			JOIN OrderRow o ON r.OrderRowId = o.Id
-			SET r.ReturnedDate = NOW()
-			WHERE o.Barcode = @Code AND r.ReturnedDate IS NULL
-			""";
-			db.Execute(query, new { Code = barcode.BarCode });
-			return true;
+			if (affectedRows < 1)
+			{
+				return new(1, $"Ingen produkt använder barcode: {barcode}");
+			}
+			return new(0, null);
 		}
 	}
 	/*
